@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Todo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --board-bg: #c19a6b;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: "Caveat", cursive;
+        background-color: var(--board-bg);
+        background-image: radial-gradient(#a67c52 15%, transparent 16%), radial-gradient(#a67c52 15%, transparent 16%);
+        background-size: 20px 20px;
+        background-position:
+          0 0,
+          10px 10px;
+        overflow: hidden;
+        user-select: none;
+        touch-action: none;
+      }
+      #app {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+      }
+      .sidebar {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 250px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding-top: 40px;
+        z-index: 9999;
+        pointer-events: none;
+      }
+      .sidebar > * {
+        pointer-events: auto;
+      }
+      .sidebar-title {
+        color: #fff;
+        font-size: 28px;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        margin-bottom: 30px;
+        text-align: center;
+      }
+      .stack {
+        position: relative;
+        width: 180px;
+        height: 180px;
+        cursor: grab;
+      }
+      .stack:active {
+        cursor: grabbing;
+      }
+      .stack-layer {
+        position: absolute;
+        inset: 0;
+        box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(0, 0, 0, 0.1);
+      }
+      .stack-layer:nth-child(1) {
+        transform: rotate(-5deg);
+        background: #ff7eb9;
+      }
+      .stack-layer:nth-child(2) {
+        transform: rotate(3deg);
+        background: #7afcff;
+      }
+      .stack-layer:nth-child(3) {
+        transform: rotate(-2deg);
+        background: #a8ff9c;
+      }
+      .stack-layer.top {
+        transform: rotate(0deg);
+        background: #feff9c;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        font-weight: bold;
+        text-align: center;
+        color: #333;
+        transition:
+          transform 0.2s,
+          box-shadow 0.2s;
+      }
+      .stack:hover .stack-layer.top {
+        transform: scale(1.05) translateY(-5px) rotate(2deg);
+        box-shadow: 5px 10px 20px rgba(0, 0, 0, 0.4);
+      }
+      .note-wrapper {
+        position: absolute;
+        width: 220px;
+        height: 220px;
+        cursor: grab;
+      }
+      .note-wrapper:active {
+        cursor: grabbing;
+      }
+      .note {
+        width: 100%;
+        height: 100%;
+        padding: 15px;
+        box-sizing: border-box;
+        box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.2);
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        transform-origin: center;
+        clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+      }
+      .note::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.04' numOctaves='5' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.8'/%3E%3C/svg%3E");
+        mix-blend-mode: multiply;
+        opacity: 0;
+        transition: opacity 0.5s;
+        pointer-events: none;
+        z-index: 10;
+      }
+      .input-container {
+        position: relative;
+        flex: 1;
+        display: flex;
+        margin-bottom: 10px;
+      }
+      .note textarea {
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        border: none;
+        outline: none;
+        font-family: "Caveat", cursive;
+        font-size: 26px;
+        color: #111;
+        resize: none;
+        text-align: center;
+        line-height: 1.2;
+        overflow: hidden;
+        cursor: text;
+      }
+      .note textarea:disabled,
+      .note textarea::placeholder {
+        color: #111;
+      }
+      .scribble {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 5;
+        background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><path d='M 5,40 L 15,65 L 25,30 L 35,70 L 45,25 L 55,75 L 65,30 L 75,65 L 85,35 L 95,60' stroke='%23000088' stroke-width='3' fill='none' stroke-linejoin='round' stroke-linecap='round'/></svg>")
+          no-repeat center;
+        background-size: 100% 100%;
+        clip-path: polygon(0 0, 0 0, 0 100%, 0 100%);
+        transition: clip-path 0.3s ease-out;
+      }
+      .done .scribble {
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+      }
+      .actions {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .actions button {
+        flex: 1;
+        height: 34px;
+        background: #ffffff;
+        border: 2px solid #222;
+        border-radius: 6px;
+        font-family: "Caveat", cursive;
+        font-size: 18px;
+        font-weight: bold;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        box-sizing: border-box;
+        box-shadow: 2px 3px 0px #222;
+        transition:
+          transform 0.1s,
+          box-shadow 0.1s,
+          background 0.1s;
+      }
+      .actions button:hover {
+        background: #f0f0f0;
+        transform: translateY(-1px);
+        box-shadow: 2px 4px 0px #222;
+      }
+      .actions button:active {
+        background: #e0e0e0;
+        transform: translate(2px, 3px);
+        box-shadow: 0px 0px 0px #222;
+      }
+      .note-wrapper.deleting {
+        animation: fallDown 0.6s forwards cubic-bezier(0.55, 0.085, 0.68, 0.53) 0.4s;
+        pointer-events: none;
+      }
+      .note-wrapper.deleting .note {
+        animation: crumplePaper 0.7s forwards ease-in-out;
+      }
+      .note-wrapper.deleting .note::before {
+        opacity: 1;
+      }
+      @keyframes crumplePaper {
+        0% {
+          transform: scale(1) rotate(var(--rot));
+          clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+          filter: brightness(1);
+        }
+        25% {
+          transform: scale(0.8) rotate(calc(var(--rot) - 15deg));
+          clip-path: polygon(4% 6%, 95% 8%, 92% 94%, 8% 96%);
+          filter: brightness(0.9);
+        }
+        50% {
+          transform: scale(0.6) rotate(calc(var(--rot) + 20deg));
+          clip-path: polygon(12% 18%, 85% 10%, 88% 82%, 15% 88%);
+          filter: brightness(0.7);
+        }
+        75% {
+          transform: scale(0.4) rotate(calc(var(--rot) - 30deg));
+          clip-path: polygon(20% 30%, 45% 15%, 80% 25%, 85% 60%, 65% 85%, 25% 80%, 10% 50%);
+          filter: brightness(0.5);
+        }
+        100% {
+          transform: scale(0.25) rotate(calc(var(--rot) + 50deg));
+          clip-path: polygon(30% 35%, 50% 20%, 70% 30%, 80% 55%, 60% 75%, 35% 70%, 20% 50%);
+          filter: brightness(0.3);
+        }
+      }
+      @keyframes fallDown {
+        0% {
+          top: var(--y);
+        }
+        100% {
+          top: 150vh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <script type="module">
+      import { html, render, useState, useEffect, useRef } from "https://emo.su/assets/lib/preact311.mjs";
+
+      const CONFIG = {
+        COLORS: ["#ff7eb9", "#ff65a3", "#7afcff", "#feff9c", "#fff740", "#a8ff9c"],
+        NOTE_SIZE: 220,
+        DELETE_ANIMATION_MS: 1000,
+      };
+
+      const createTodoItem = (x, y) => ({
+        id: Date.now(),
+        text: "",
+        done: false,
+        isDeleting: false,
+        color: CONFIG.COLORS[Math.floor(Math.random() * CONFIG.COLORS.length)],
+        rot: Math.floor(Math.random() * 14) - 7,
+        x: x - CONFIG.NOTE_SIZE / 2,
+        y: y - CONFIG.NOTE_SIZE / 2,
+        zIndex: Date.now(),
+      });
+
+      function useTodos() {
+        const [todos, setTodos] = useState([]);
+
+        const addTodo = (x, y) => {
+          const newTodo = createTodoItem(x, y);
+          setTodos((prev) => [...prev, newTodo]);
+          return newTodo.id;
+        };
+
+        const updateTodo = (id, updates) => {
+          setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
+        };
+
+        const removeTodo = (id) => {
+          updateTodo(id, { isDeleting: true });
+          setTimeout(() => {
+            setTodos((prev) => prev.filter((t) => t.id !== id));
+          }, CONFIG.DELETE_ANIMATION_MS);
+        };
+
+        const bringToFront = (id) => updateTodo(id, { zIndex: Date.now() });
+
+        return { todos, addTodo, updateTodo, removeTodo, bringToFront };
+      }
+
+      function useDragAndDrop(onDragMove) {
+        const dragRef = useRef(null);
+
+        useEffect(() => {
+          const handlePointerMove = (e) => {
+            if (!dragRef.current) return;
+            const { id, offsetX, offsetY } = dragRef.current;
+            onDragMove(id, e.clientX - offsetX, e.clientY - offsetY);
+          };
+          const handlePointerUp = () => {
+            dragRef.current = null;
+          };
+
+          window.addEventListener("pointermove", handlePointerMove);
+          window.addEventListener("pointerup", handlePointerUp);
+          window.addEventListener("pointercancel", handlePointerUp);
+
+          return () => {
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
+            window.removeEventListener("pointercancel", handlePointerUp);
+          };
+        }, [onDragMove]);
+
+        const startDrag = (id, offsetX, offsetY) => {
+          dragRef.current = { id, offsetX, offsetY };
+        };
+
+        return { startDrag };
+      }
+
+      const Sidebar = ({ onSpawn }) => html`
+        <div class="sidebar">
+          <div class="sidebar-title">Задачи</div>
+          <div class="stack" onPointerDown=${onSpawn}>
+            <div class="stack-layer"></div>
+            <div class="stack-layer"></div>
+            <div class="stack-layer"></div>
+            <div class="stack-layer top">
+              <span>Перетянуть на доску</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const Note = ({ todo, onDragStart, onUpdate, onToggle, onDelete }) => {
+        const handlePointerDown = (e) => {
+          if (e.target.tagName === "TEXTAREA" || e.target.closest("button")) return;
+          const rect = e.currentTarget.getBoundingClientRect();
+          onDragStart(todo.id, e.clientX - rect.left, e.clientY - rect.top);
+
+          e.currentTarget.setPointerCapture(e.pointerId);
+        };
+
+        return html`
+          <div
+            class="note-wrapper ${todo.isDeleting ? "deleting" : ""}"
+            style="left: ${todo.x}px; top: ${todo.y}px; --y: ${todo.y}px; z-index: ${todo.zIndex};"
+            onPointerDown=${handlePointerDown}
+          >
+            <div class="note" style="background-color: ${todo.color}; --rot: ${todo.rot}deg; transform: rotate(${todo.rot}deg);">
+              <div class="input-container ${todo.done ? "done" : ""}">
+                <textarea
+                  value=${todo.text}
+                  onInput=${(e) => onUpdate(todo.id, { text: e.target.value })}
+                  disabled=${todo.done}
+                  placeholder="Писать здесь"
+                  spellcheck=${false}
+                ></textarea>
+                <div class="scribble"></div>
+              </div>
+              <div class="actions">
+                <button onClick=${() => onToggle(todo.id, !todo.done)}>
+                  <span>${todo.done ? "Вернуть" : "Готово"}</span>
+                </button>
+                <button onClick=${() => onDelete(todo.id)}>
+                  <span>Убрать</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      };
+
+      function App() {
+        const { todos, addTodo, updateTodo, removeTodo, bringToFront } = useTodos();
+
+        const { startDrag } = useDragAndDrop((id, x, y) => {
+          updateTodo(id, { x, y });
+        });
+
+        const handleSpawnNote = (e) => {
+          const newId = addTodo(e.clientX, e.clientY);
+          startDrag(newId, CONFIG.NOTE_SIZE / 2, CONFIG.NOTE_SIZE / 2);
+        };
+
+        const handleDragStart = (id, offsetX, offsetY) => {
+          bringToFront(id);
+          startDrag(id, offsetX, offsetY);
+        };
+
+        return html`
+          <${Sidebar} onSpawn=${handleSpawnNote} />
+          ${todos.map(
+            (todo) => html`
+              <${Note}
+                key=${todo.id}
+                todo=${todo}
+                onDragStart=${handleDragStart}
+                onUpdate=${updateTodo}
+                onToggle=${(id, done) => updateTodo(id, { done })}
+                onDelete=${removeTodo}
+              />
+            `,
+          )}
+        `;
+      }
+
+      render(html`<${App} />`, document.getElementById("app"));
+    </script>
+  </body>
+</html>
